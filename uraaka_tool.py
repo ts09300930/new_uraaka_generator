@@ -20,9 +20,9 @@ st.markdown("---")
 with st.expander("📖 使い方", expanded=False):
     st.markdown("""
     1. **Grok APIキー**を入力（サイドバー）
-    2. **キャラクター設定**を簡潔に入力（例：32歳シングルマザー、Fカップ、小学生の娘）
-    3. **ツイート生成** → 自動で裏垢女子っぽいツイートが出力
-    4. **プロンプト変換** → 各ツイートから画像生成用英語プロンプトを生成
+    2. **キャラクター設定**を簡潔に入力
+    3. **ツイート生成** → 裏垢女子っぽいツイートが出力
+    4. **プロンプト変換** → 画像生成用英語プロンプトを生成
     5. **CSV出力** → データを保存
     6. プロンプトを**HiggsfieldやImageFXに貼り付け**
     """)
@@ -33,7 +33,6 @@ with st.expander("📖 使い方", expanded=False):
 with st.sidebar:
     st.header("🔑 API設定")
     
-    # シークレットまたは直接入力
     if "XAI_API_KEY" in st.secrets:
         api_key = st.secrets["XAI_API_KEY"]
         st.success("✓ APIキー読み込み完了")
@@ -44,11 +43,9 @@ with st.sidebar:
         st.warning("APIキーを入力してください")
         st.stop()
     
-    # Grok API設定
     if api_key.startswith("xai-"):
         client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
         
-        # モデル選択
         model_options = [
             "grok-4-1-fast-reasoning",
             "grok-4-1-fast-non-reasoning",
@@ -64,11 +61,9 @@ with st.sidebar:
     
     st.divider()
     
-    # 生成設定
     st.header("⚙️ 設定")
     num_tweets = st.slider("生成するツイート数", 2, 8, 4)
     
-    # 文字数設定
     st.subheader("📏 ツイートの長さ")
     tweet_length_option = st.select_slider(
         "文字数の目安",
@@ -83,7 +78,6 @@ with st.sidebar:
     }
     target_length = length_map[tweet_length_option]
     
-    # シャドウバン対策レベル
     st.subheader("🛡️ シャドウバン対策")
     safety_level = st.select_slider(
         "露出セーフティレベル",
@@ -98,170 +92,134 @@ with st.sidebar:
     }
 
 # ============================================================
-# 自動補完される裏垢女子基本要素（最小限）
-# ============================================================
-AUTO_IMPLICIT_TRAITS = """
-【以下の特徴は自動的に反映されます】
-- 家の中は散らかっていることが多い
-- 寂しがり屋でダメな自分をさらけ出す
-"""
-
-# ============================================================
 # メインエリア：キャラクター設定
 # ============================================================
 st.header("👤 キャラクター設定（簡潔でOK）")
 
-st.caption("例：32歳シングルマザー、Fカップ、小学生の娘がいる、彼氏いない歴=年齢")
+st.caption("例：22歳、Fカップ、彼氏いない歴22年、メガネ、ブサイク")
 
 character_input = st.text_area(
     "特徴を書いてください",
     height=100,
-    placeholder="例：22歳、Fカップ、彼氏いない歴22年、メガネ"
+    placeholder="例：22歳、Fカップ、彼氏いない歴22年、メガネ、ブサイク"
 )
 
 if not character_input:
     st.info("👆 上の欄にキャラクター特徴を入力してください")
     st.stop()
 
-# ユーザー入力 + 自動補完を結合
 full_character_traits = f"""
 【ユーザー設定】
 {character_input}
-
-【自動適用（最小限）】
-{AUTO_IMPLICIT_TRAITS}
 """
 
 # ============================================================
-# ツイート生成用プロンプト
+# ツイート生成関数（完全修正版）
 # ============================================================
 def generate_tweets():
-    prompt = f"""
-あなたは以下の特徴を持つ「裏垢女子」です。
+    # システムプロンプト（厳格なルール）
+    system_prompt = f"""あなたは日本語のツイート生成AIです。以下のルールを絶対に守ってください。
+
+【必須ルール】
+1. ツイートの長さは{target_length}にすること
+2. 改行は「。」「！」「？」の直後に入れること。文章の途中で改行してはいけない
+3. 句点ごとに改行すること。例：「○○です。△△です。□□です。」→ 3行に分ける
+4. 「撮影」「写真」「iPhone」「カメラ」という単語を絶対に使わない
+5. 「見られたく」「見せたい」という表現を絶対に使わない
+6. すべてのツイートを異なる内容にする（同じパターンを繰り返さない）
+7. 数字や箇条書き記号を絶対に使わない
+8. 「」は使わない
+
+【正しい出力例】
+○○です。
+△△です。
+□□です。
+
+【絶対にやってはいけない出力例】
+○○です。△△です。□□です。（改行なし）
+○○で
+す。△△で
+す。（途中改行）"""
+
+    user_prompt = f"""以下の特徴を持つ裏垢女子のツイートを{num_tweets}個生成してください。
 
 {full_character_traits}
 
-【タスク】
-{num_tweets}個の「ふと漏れた一言」のようなツイートを生成してください。
+以下の形式で出力してください：
 
-【厳守ルール - 最優先】
+ツイート1:
+（本文）
 
-■ 改行について
-- 文章の途中で改行しないでください
-- 改行は「文の終わり（句点。）」でのみ入れてください
-- 1つの文が終わったら改行、また次の文を書く
+ツイート2:
+（本文）
 
-【正しい改行例】
-「小学生女児の娘がいるママだけど、会える男の人探してます。
-結婚はしていません。シングルマザーなので安心してください。
-うちは娘のオモチャとかあって生活感があるけど、それでも良ければ遊びに来てください。
-お泊まりOKです。」
+ツイート3:
+（本文）
 
-【間違った改行例（絶対にやらないでください）】
-「文章の途中で
-改行しないでください。
-これはダメな例です。」
+ツイート4:
+（本文）"""
 
-■ 内容について
-- 1ツイートあたり {target_length} を目安
-- 【最重要】上記の【ユーザー設定】に書かれた特徴だけを使ってください
-  - ユーザー設定に書かれている単語や特徴をそのまま使う
-  - 例：「ブサイク」と書かれていれば「ブサイク」を使う
-  - 例：「可愛い」と書かれていれば「可愛い」を使う
-  - 例：「Fカップ」と書かれていれば「Fカップ」を使う
-  - ユーザー設定にない容姿評価は絶対に追加しないでください
-- ユーザー設定にあるコンプレックスを具体的に書く
-- 「誰かに会いたい」「触れてほしい」という欲求を自然に含める
-- 恥ずかしさと寂しさが混ざった感情を表現する
-
-■ 禁止事項
-- 「撮影」「写真」「iPhone」「カメラ」などの撮影描写禁止
-- 「見られたく」は禁止（代わりに「会いたい」「触れてほしい」を使ってください）
-- 同じフレーズの繰り返し禁止
-- 数字や記号を使った箇条書き禁止
-- ユーザー設定にない特徴を勝手に追加しない
-
-【出力形式（###の中に1つのツイートを書く）】
-###
-文の終わりで改行します。
-新しい文を書きます。
-さらに続けます。
-
-###
-次のツイートは前と違う内容にします。
-改行は文の終わりだけです。
-
-...（{num_tweets}個まで）
-"""
-    
     response = client.chat.completions.create(
         model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
         temperature=1.3,
-        max_tokens=1500
+        max_tokens=1000
     )
     
     raw = response.choices[0].message.content
     
-    # ツイートを抽出
+    # ツイート抽出
     tweets = []
-    for block in raw.split("###"):
-        block = block.strip()
-        if block and not block.startswith(" "):
-            # 先頭の数字や記号を除去
-            block = re.sub(r'^[\d\.\-\s]+', '', block)
-            lines = block.split('\n')
-            cleaned_lines = []
-            for line in lines:
-                line = line.strip()
-                if line and not re.match(r'^\d+$', line):
-                    cleaned_lines.append(line)
-            block = '\n'.join(cleaned_lines)
-            block = block.strip()
-            if block and len(block) > 15:
-                tweets.append(block)
+    for line in raw.split('\n'):
+        if re.match(r'^ツイート\d+:', line):
+            tweet_text = re.sub(r'^ツイート\d+:', '', line).strip()
+            if tweet_text:
+                tweets.append(tweet_text)
+        elif tweets and line.strip() and not line.strip().startswith('ツイート'):
+            # 前のツイートに追記（複数行の場合）
+            tweets[-1] = tweets[-1] + " " + line.strip()
+    
+    # 空のツイートを除去
+    tweets = [t for t in tweets if t and len(t) > 10]
+    
+    # 指定数に調整
+    if len(tweets) < num_tweets:
+        # 足りない場合は補完
+        for i in range(len(tweets), num_tweets):
+            tweets.append(tweets[i % len(tweets)] if tweets else "さみしい。誰か来てほしい。")
     
     return tweets[:num_tweets]
 
 # ============================================================
-# プロンプト変換用
+# プロンプト変換関数
 # ============================================================
-def tweet_to_prompt(tweet, index):
+def tweet_to_prompt(tweet):
     safety_instruction = safety_map[safety_level]
     
-    prompt = f"""
-以下の裏垢女子のツイートから、AI画像生成用の英語プロンプトを1つだけ作成してください。
+    prompt = f"""以下のツイートから、AI画像生成用の英語プロンプトを1つ作成してください。
 
 【ツイート】
 {tweet}
 
-【キャラクター特徴】
-{full_character_traits}
+【キャラクター】
+{character_input}
 
-【必須要素（必ず入れる）】
-- iPhoneで撮影した自撮り写真
-- 手ブレやピンボケがある（完璧じゃない）
-- 鏡に写るスマホ構図を意識
-- 下着や部屋着程度の露出
-- 家の中の生活感（散らかり、日常的な小物）
-- 恥ずかしそうな表情や仕草
-- リアルな肌質（肌荒れやクマも含めて自然）
+【必須要素】
+- iPhoneで撮影した自撮り、手ブレやピンボケ、鏡に写るスマホ構図
+- 下着や部屋着程度の露出、家の中の生活感（散らかり）
+- 恥ずかしそうな表情、リアルな肌質（加工なし）
 
-【絶対に入れない要素（禁止ワード）】
-- convenience store, cafe, coffee shop, studio, perfectly tidy
-- explicit, porn, naked, genitals, hardcore, XXX
-- beautiful, elegant, perfect, minimalist, clean
+【禁止ワード】
+convenience store, cafe, coffee shop, studio, perfectly tidy, explicit, porn, naked, genitals, hardcore, beautiful, elegant, perfect, minimalist, clean
 
 【シャドウバン対策】
 {safety_instruction}
 
-【出力ルール】
-- 英語のみ
-- 80語以内
-- カンマで区切られた1行のプロンプト
-- 禁止ワード絶対不使用
-"""
-    
+【出力】英語のみ、80語以内、カンマ区切り1行、禁止ワード不使用"""
+
     response = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
@@ -272,22 +230,20 @@ def tweet_to_prompt(tweet, index):
     return response.choices[0].message.content.strip()
 
 # ============================================================
-# UI: ステップ1 ツイート生成
+# UI: ステップ1
 # ============================================================
 st.markdown("---")
 st.header("📝 ステップ1：ツイート生成")
 
 if st.button("✨ ツイートを生成する", type="primary", use_container_width=True):
-    with st.spinner("Grok APIでツイート生成中..."):
+    with st.spinner("生成中..."):
         tweets = generate_tweets()
         st.session_state.tweets = tweets
         st.success(f"{len(tweets)}件のツイートを生成しました")
 
-# ツイート表示・編集
 if "tweets" in st.session_state:
     st.subheader("✏️ 生成されたツイート（編集可能）")
     edited_tweets = []
-    
     cols = st.columns(2)
     
     for i, tweet in enumerate(st.session_state.tweets):
@@ -297,47 +253,41 @@ if "tweets" in st.session_state:
                 f"ツイート {i+1}",
                 tweet,
                 key=f"tweet_edit_{i}",
-                height=200
+                height=150
             )
             edited_tweets.append(edited)
     
     st.session_state.tweets = edited_tweets
 
 # ============================================================
-# UI: ステップ2 プロンプト変換
+# UI: ステップ2
 # ============================================================
 if "tweets" in st.session_state and st.session_state.tweets:
     st.markdown("---")
     st.header("🎨 ステップ2：英語プロンプトに変換")
-    st.caption("各ツイートから、Higgsfield/ImageFXに貼り付ける用の英語プロンプトを生成します")
     
     if st.button("🔄 プロンプトに変換する", type="primary", use_container_width=True):
         prompts = []
         progress_bar = st.progress(0)
-        status_text = st.empty()
         
         for i, tweet in enumerate(st.session_state.tweets):
-            status_text.text(f"変換中... ({i+1}/{len(st.session_state.tweets)})")
-            prompt = tweet_to_prompt(tweet, i)
+            prompt = tweet_to_prompt(tweet)
             prompts.append(prompt)
             progress_bar.progress((i + 1) / len(st.session_state.tweets))
         
-        status_text.text("完了！")
         st.session_state.prompts = prompts
         st.success(f"{len(prompts)}件のプロンプトを生成しました")
     
-    # プロンプト表示・編集
     if "prompts" in st.session_state:
         st.subheader("✏️ 生成された英語プロンプト（編集可能）")
         edited_prompts = []
-        
         cols = st.columns(2)
         
         for i, (tweet, prompt) in enumerate(zip(st.session_state.tweets, st.session_state.prompts)):
             col_idx = i % 2
             with cols[col_idx]:
                 with st.expander(f"ツイート{i+1}", expanded=False):
-                    st.caption(f"元ツイート: {tweet[:100]}..." if len(tweet) > 100 else f"元ツイート: {tweet}")
+                    st.caption(f"元: {tweet[:80]}...")
                     edited = st.text_area(
                         f"プロンプト {i+1}",
                         prompt,
@@ -383,8 +333,5 @@ if "tweets" in st.session_state and "prompts" in st.session_state:
         for i, prompt in enumerate(st.session_state.prompts):
             st.code(f"【{i+1}】\n{prompt}", language="text")
 
-# ============================================================
-# フッター
-# ============================================================
 st.markdown("---")
-st.caption("💡 このツールはGrok APIを使用しています。生成したプロンプトはHiggsfieldやImageFXに貼り付けてお使いください。")
+st.caption("💡 Grok API使用。生成したプロンプトをHiggsfieldやImageFXに貼り付けてください。")
