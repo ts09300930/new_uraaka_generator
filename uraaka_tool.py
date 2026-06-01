@@ -21,7 +21,7 @@ with st.expander("📖 使い方", expanded=False):
     st.markdown("""
     1. **Grok APIキー**を入力（サイドバー）
     2. **キャラクター設定**を簡潔に入力（例：32歳シングルマザー、Fカップ、小学生の娘）
-    3. **ツイート生成** → 自動で裏垢女子っぽいツイートが4件出力
+    3. **ツイート生成** → 自動で裏垢女子っぽいツイートが出力
     4. **プロンプト変換** → 各ツイートから画像生成用英語プロンプトを生成
     5. **CSV出力** → データを保存
     6. プロンプトを**HiggsfieldやImageFXに貼り付け**
@@ -64,9 +64,24 @@ with st.sidebar:
     
     st.divider()
     
-    # 生成設定（以下は元のまま）
+    # 生成設定
     st.header("⚙️ 設定")
     num_tweets = st.slider("生成するツイート数", 2, 8, 4)
+    
+    # 文字数設定（追加）
+    st.subheader("📏 ツイートの長さ")
+    tweet_length_option = st.select_slider(
+        "文字数の目安",
+        options=["短め（30〜50文字）", "普通（50〜80文字）", "長め（80〜120文字）"],
+        value="長め（80〜120文字）"
+    )
+    
+    length_map = {
+        "短め（30〜50文字）": "30〜50文字",
+        "普通（50〜80文字）": "50〜80文字",
+        "長め（80〜120文字）": "80〜120文字"
+    }
+    target_length = length_map[tweet_length_option]
     
     # シャドウバン対策レベル
     st.subheader("🛡️ シャドウバン対策")
@@ -123,7 +138,7 @@ full_character_traits = f"""
 """
 
 # ============================================================
-# ツイート生成用プロンプト（裏垢女子らしさを徹底）
+# ツイート生成用プロンプト（修正版：文字数制御 + 具体性）
 # ============================================================
 def generate_tweets():
     prompt = f"""
@@ -135,21 +150,24 @@ def generate_tweets():
 {num_tweets}個の「ふと漏れた一言」のようなツイートを生成してください。
 
 【厳守ルール】
-1. 説明文にしない（「私は〜です」ではなく「〜かも」「〜なんだよね」などの曖昧な口調）
-2. 1〜2行の短さ（長くても40文字以内を目安）
-3. 毎回違う語尾・表現を使う（「…」「！」「〜」「。」を使い分ける）
-4. 以下のトーンをミックスする：
-   - 寂しさ / 欲求不満 / 自虐 / ちょっとした誘い / 罪悪感
-5. 過激になりすぎない（シャドウバンされない程度）
+1. **1ツイートあたり {target_length} を厳守**（この文字数になるよう具体的に書く）
+2. 説明文ではなく「独り言・ぼやき・誰かへの呼びかけ」の形式
+3. 以下の要素を自然に含める：
+   - 具体的な状況（家の様子・子供の存在・時間帯・散らかった部屋など）
+   - 感情（寂しさ・欲求不満・罪悪感・照れ・自虐）
+   - 誰かへの呼びかけや誘い（「来てくれない？」「会いたい」など）
+4. 毎回違う語尾・表現を使う（「…」「！」「〜」「。」「かも」「なんだよね」）
+
+【具体例（このくらいの長さと具体性を目指して）】
+「小学生女児の娘がいるママだけど会える男の人探してます。結婚はしていません。シングルマザーなので安心してください。うちは娘のオモチャとかあって生活感があるけどそれでも良ければ遊びに来てください。お泊まりOKです。」
 
 【絶対にやらないこと】
 - 「今日は〜でした」という日記形式
 - 同じパターンの繰り返し
-- 具体的な性器や行為の描写
+- 過激な表現（シャドウバン対策）
+- 短すぎるツイート（{target_length}を下回らないように）
 
 【出力形式】
-必ず以下の形式で出力してください：
-
 ###1
 1つ目のツイート
 ###2
@@ -162,8 +180,8 @@ def generate_tweets():
     response = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=1.3,  # 高めでバリエーションを出す
-        max_tokens=800
+        temperature=1.3,
+        max_tokens=1500  # 長めのツイートに対応
     )
     
     raw = response.choices[0].message.content
@@ -173,13 +191,12 @@ def generate_tweets():
     for block in raw.split("###"):
         block = block.strip()
         if block and not block.startswith(" "):
-            # 最初の改行以降を本文として扱う
             lines = block.split("\n", 1)
             if len(lines) > 1:
                 tweet_text = lines[1].strip()
             else:
                 tweet_text = block
-            if tweet_text and len(tweet_text) > 0:
+            if tweet_text and len(tweet_text) > 10:  # 10文字以上のみ
                 tweets.append(tweet_text)
     
     return tweets[:num_tweets]
@@ -248,9 +265,8 @@ if st.button("✨ ツイートを生成する", type="primary", use_container_wi
 if "tweets" in st.session_state:
     st.subheader("✏️ 生成されたツイート（編集可能）")
     edited_tweets = []
-    cols = st.columns(1)
     for i, tweet in enumerate(st.session_state.tweets):
-        edited = st.text_area(f"ツイート {i+1}", tweet, key=f"tweet_edit_{i}", height=80)
+        edited = st.text_area(f"ツイート {i+1}", tweet, key=f"tweet_edit_{i}", height=100)
         edited_tweets.append(edited)
     st.session_state.tweets = edited_tweets
 
@@ -322,7 +338,7 @@ if "tweets" in st.session_state and "prompts" in st.session_state:
     
     # プロンプトだけをコピーしやすい形で表示
     with col2:
-        st.markdown("**📋 Higgsfield貼り付け用（クリックでコピー）**")
+        st.markdown("**📋 Higgsfield貼り付け用**")
         for i, prompt in enumerate(st.session_state.prompts):
             st.code(f"【{i+1}】\n{prompt}", language="text")
 
