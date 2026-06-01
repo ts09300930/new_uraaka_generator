@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 import io
 import re
+import random
 
 st.set_page_config(
     page_title="裏垢女子変換ツール",
@@ -12,6 +13,14 @@ st.set_page_config(
 )
 
 st.title("🎀 裏垢女子ツイート → AI画像生成プロンプト変換ツール")
+
+# ============================================================
+# セッション状態の初期化
+# ============================================================
+if "tweets" not in st.session_state:
+    st.session_state.tweets = None
+if "prompts" not in st.session_state:
+    st.session_state.prompts = None
 
 # ============================================================
 # サイドバー
@@ -78,73 +87,81 @@ st.header("📝 ツイート生成")
 
 if st.button("✨ ツイートを生成する", type="primary", use_container_width=True):
     with st.spinner("生成中..."):
+        random_seed = random.randint(1, 999999)
+        
         prompt = f"""以下の特徴を持つ女性のツイートを{num_tweets}個作ってください。
 
 特徴：{character}
 
 ルール：
 - 各ツイートは{length_option}
-- 句点「。」で終わったら改行する
+- 文の終わり（「。」「！」「？」）の後は改行する
 - 「写真」「撮影」「カメラ」という言葉は使わない
 - 全てのツイートを違う内容にする
-- 文末は「。」を使う
 
-【出力例】
-彼氏いない歴22年。そろそろ誰か来てくれないかな。
-Fカップって重いだけ。でも触ってほしい気持ちもある。
-今夜は一人。さみしすぎて寝れそうにない。
-
-では、{num_tweets}個のツイートを出力してください。1行に1ツイートです。"""
+では、{num_tweets}個のツイートを出力してください。
+乱数シード: {random_seed}"""
 
         response = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=1.2,
-            max_tokens=800
+            temperature=1.4,
+            max_tokens=1000
         )
         
         raw = response.choices[0].message.content
         
         # ツイート抽出
-        tweets = [line.strip() for line in raw.split('\n') if line.strip() and len(line.strip()) > 10 and not line.strip().startswith('例')]
+        tweets = []
+        for line in raw.split('\n'):
+            line = line.strip()
+            if line and len(line) > 10 and not line.startswith('例'):
+                tweets.append(line)
+        
         tweets = tweets[:num_tweets]
         
-        # 補完
-        while len(tweets) < num_tweets:
-            tweets.append("さみしい。誰か来てほしい。")
-        
-        st.session_state.tweets = tweets
-        st.success(f"{len(tweets)}件のツイートを生成しました")
+        if not tweets:
+            st.error("ツイートを生成できませんでした。もう一度お試しください。")
+        else:
+            st.session_state.tweets = tweets
+            st.success(f"{len(tweets)}件のツイートを生成しました")
 
 # ツイート表示
-if "tweets" in st.session_state:
+if st.session_state.tweets:
     st.subheader("✏️ ツイート（編集可能）")
     edited = []
     for i, t in enumerate(st.session_state.tweets):
-        new_t = st.text_area(f"ツイート {i+1}", t, key=f"t_{i}", height=100)
+        new_t = st.text_area(f"ツイート {i+1}", t, key=f"t_{i}", height=120)
         edited.append(new_t)
     st.session_state.tweets = edited
 
 # ============================================================
 # プロンプト変換
 # ============================================================
-if "tweets" in st.session_state and st.session_state.tweets:
+if st.session_state.tweets:
     st.markdown("---")
     st.header("🎨 英語プロンプトに変換")
     
     if st.button("🔄 プロンプト変換", type="primary", use_container_width=True):
         prompts = []
+        progress_bar = st.progress(0)
+        
         for i, tweet in enumerate(st.session_state.tweets):
-            p = f"""ツイートから画像生成プロンプトを作成：{tweet}
+            p = f"""以下のツイートからAI画像生成用の英語プロンプトを1つ作成してください。
 
-キャラ：{character}
+ツイート：{tweet}
 
-条件：
+キャラクター：{character}
+
+必須要素：
 - iPhone自撮り、手ブレ、ピンボケ
+- 鏡に写るスマホ構図
 - 下着や部屋着、家の中の散らかり
 - 恥ずかしそうな表情、リアルな肌質
-- 禁止：cafe, studio, perfect, clean, explicit, porn, naked
-- 安全レベル：{safety_map[safety]}
+
+禁止ワード：cafe, studio, perfect, clean, explicit, porn, naked, genitals, beautiful, elegant
+
+安全レベル：{safety_map[safety]}
 
 英語のみ、80語以内、1行で出力してください。"""
             
@@ -155,11 +172,12 @@ if "tweets" in st.session_state and st.session_state.tweets:
                 max_tokens=400
             )
             prompts.append(res.choices[0].message.content.strip())
+            progress_bar.progress((i + 1) / len(st.session_state.tweets))
         
         st.session_state.prompts = prompts
         st.success("変換完了")
     
-    if "prompts" in st.session_state:
+    if st.session_state.prompts:
         st.subheader("✏️ プロンプト（編集可能）")
         edited_prompts = []
         for i, (t, p) in enumerate(zip(st.session_state.tweets, st.session_state.prompts)):
@@ -172,7 +190,7 @@ if "tweets" in st.session_state and st.session_state.tweets:
 # ============================================================
 # CSV出力
 # ============================================================
-if "tweets" in st.session_state and "prompts" in st.session_state:
+if st.session_state.tweets and st.session_state.prompts:
     st.markdown("---")
     st.header("💾 データ出力")
     
