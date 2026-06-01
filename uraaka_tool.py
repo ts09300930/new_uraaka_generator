@@ -68,7 +68,7 @@ with st.sidebar:
     st.header("⚙️ 設定")
     num_tweets = st.slider("生成するツイート数", 2, 8, 4)
     
-    # 文字数設定（追加）
+    # 文字数設定
     st.subheader("📏 ツイートの長さ")
     tweet_length_option = st.select_slider(
         "文字数の目安",
@@ -138,7 +138,7 @@ full_character_traits = f"""
 """
 
 # ============================================================
-# ツイート生成用プロンプト（修正版：文字数制御 + 具体性）
+# ツイート生成用プロンプト
 # ============================================================
 def generate_tweets():
     prompt = f"""
@@ -286,13 +286,25 @@ if st.button("✨ ツイートを生成する", type="primary", use_container_wi
         st.session_state.tweets = tweets
         st.success(f"{len(tweets)}件のツイートを生成しました")
 
-# ツイート表示・編集
+# ツイート表示・編集（2カラム＋高さ200）
 if "tweets" in st.session_state:
     st.subheader("✏️ 生成されたツイート（編集可能）")
     edited_tweets = []
+    
+    # 2カラムレイアウト
+    cols = st.columns(2)
+    
     for i, tweet in enumerate(st.session_state.tweets):
-        edited = st.text_area(f"ツイート {i+1}", tweet, key=f"tweet_edit_{i}", height=100)
-        edited_tweets.append(edited)
+        col_idx = i % 2
+        with cols[col_idx]:
+            edited = st.text_area(
+                f"ツイート {i+1}",
+                tweet,
+                key=f"tweet_edit_{i}",
+                height=200  # 高さを広げて全文表示
+            )
+            edited_tweets.append(edited)
+    
     st.session_state.tweets = edited_tweets
 
 # ============================================================
@@ -318,15 +330,27 @@ if "tweets" in st.session_state and st.session_state.tweets:
         st.session_state.prompts = prompts
         st.success(f"{len(prompts)}件のプロンプトを生成しました")
     
-    # プロンプト表示・編集
+    # プロンプト表示・編集（2カラム＋高さ150）
     if "prompts" in st.session_state:
         st.subheader("✏️ 生成された英語プロンプト（編集可能）")
         edited_prompts = []
+        
+        # 2カラムレイアウト
+        cols = st.columns(2)
+        
         for i, (tweet, prompt) in enumerate(zip(st.session_state.tweets, st.session_state.prompts)):
-            with st.expander(f"ツイート{i+1} → プロンプト", expanded=False):
-                st.caption(f"元ツイート: {tweet}")
-                edited = st.text_area(f"プロンプト {i+1}", prompt, key=f"prompt_edit_{i}", height=100)
-                edited_prompts.append(edited)
+            col_idx = i % 2
+            with cols[col_idx]:
+                with st.expander(f"ツイート{i+1}", expanded=False):
+                    st.caption(f"元ツイート: {tweet[:100]}..." if len(tweet) > 100 else f"元ツイート: {tweet}")
+                    edited = st.text_area(
+                        f"プロンプト {i+1}",
+                        prompt,
+                        key=f"prompt_edit_{i}",
+                        height=150
+                    )
+                    edited_prompts.append(edited)
+        
         st.session_state.prompts = edited_prompts
 
 # ============================================================
