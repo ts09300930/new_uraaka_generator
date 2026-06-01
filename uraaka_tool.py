@@ -47,15 +47,24 @@ with st.sidebar:
     # Grok API設定
     if api_key.startswith("xai-"):
         client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
-        MODEL = "grok-2-latest"
-        st.success("✓ Grok API接続準備完了")
+        
+        # モデル選択（あなたの環境で動いているもの）
+        model_options = [
+            "grok-4-1-fast-reasoning",
+            "grok-4-1-fast-non-reasoning",
+            "grok-4-fast-reasoning",
+            "grok-4"
+        ]
+        MODEL = st.selectbox("使用モデル", model_options, index=0)
+        
+        st.success(f"✓ Grok API接続準備完了（{MODEL}）")
     else:
         st.error("APIキーは xai- で始まる必要があります")
         st.stop()
     
     st.divider()
     
-    # 生成設定
+    # 生成設定（以下は元のまま）
     st.header("⚙️ 設定")
     num_tweets = st.slider("生成するツイート数", 2, 8, 4)
     
