@@ -48,7 +48,7 @@ with st.sidebar:
     if api_key.startswith("xai-"):
         client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
         
-        # モデル選択（あなたの環境で動いているもの）
+        # モデル選択
         model_options = [
             "grok-4-1-fast-reasoning",
             "grok-4-1-fast-non-reasoning",
@@ -98,17 +98,12 @@ with st.sidebar:
     }
 
 # ============================================================
-# 自動補完される裏垢女子基本要素（ユーザーが書かなくていい）
+# 自動補完される裏垢女子基本要素（最小限）
 # ============================================================
 AUTO_IMPLICIT_TRAITS = """
-【以下の特徴は自動的にツイートとプロンプトに反映されます】
-- iPhoneで自撮りしている
-- 写真は手ブレやピンボケがある（プロっぽくない）
-- 鏡に写るスマホ構図をよく使う
-- 露出は下着や部屋着程度まで
-- 恥ずかしがりながらも誘ってしまうタイプ
-- 肌は加工しすぎないリアルな質感
+【以下の特徴は自動的に反映されます】
 - 家の中は散らかっていることが多い
+- 寂しがり屋でダメな自分をさらけ出す
 """
 
 # ============================================================
@@ -116,12 +111,12 @@ AUTO_IMPLICIT_TRAITS = """
 # ============================================================
 st.header("👤 キャラクター設定（簡潔でOK）")
 
-st.caption("例：32歳シングルマザー、Fカップ、小学生の娘がいる、性欲の捌け口がないのがコンプレックス")
+st.caption("例：32歳シングルマザー、Fカップ、小学生の娘がいる、彼氏いない歴=年齢")
 
 character_input = st.text_area(
     "特徴を書いてください",
     height=100,
-    placeholder="例：32歳シングルマザー、Fカップ、小学生の娘がいる、性欲の捌け口がないのがコンプレックス"
+    placeholder="例：22歳、Fカップ、彼氏いない歴22年、メガネ"
 )
 
 if not character_input:
@@ -133,12 +128,12 @@ full_character_traits = f"""
 【ユーザー設定】
 {character_input}
 
-【自動適用（あなたが書かなくても常に追加）】
+【自動適用（最小限）】
 {AUTO_IMPLICIT_TRAITS}
 """
 
 # ============================================================
-# ツイート生成用プロンプト（改行指示を明確化）
+# ツイート生成用プロンプト
 # ============================================================
 def generate_tweets():
     prompt = f"""
@@ -149,79 +144,87 @@ def generate_tweets():
 【タスク】
 {num_tweets}個の「ふと漏れた一言」のようなツイートを生成してください。
 
-【厳守ルール】
-1. **1ツイートあたり {target_length} を厳守**
-2. **改行は「意味のまとまり」ごとに入れる。以下の良い例と悪い例を参考に：**
+【厳守ルール - 最優先】
 
-【良い改行の例】（意味のまとまりで改行）
-「小学生女児の娘がいるママだけど、
-会える男の人探してます。
+■ 改行について
+- 文章の途中で改行しないでください
+- 改行は「文の終わり（句点。）」でのみ入れてください
+- 1つの文が終わったら改行、また次の文を書く
 
-結婚はしていません。
-シングルマザーなので安心してください。
-
-うちは娘のオモチャとかあって生活感があるけど、
-それでも良ければ遊びに来てください。
+【正しい改行例】
+「小学生女児の娘がいるママだけど、会える男の人探してます。
+結婚はしていません。シングルマザーなので安心してください。
+うちは娘のオモチャとかあって生活感があるけど、それでも良ければ遊びに来てください。
 お泊まりOKです。」
 
-【悪い改行の例】（やってはいけない：単語単位の細かい改行）
-「寂しすぎて
-誰か来てほしい
-誰も来ないから
-このままでもいいやって」
+【間違った改行例（絶対にやらないでください）】
+「文章の途中で
+改行しないでください。
+これはダメな例です。」
 
-3. **すべてのツイートを異なる内容にする。同じフレーズを繰り返さない。**
-4. **数字や箇条書きの記号（1. 2. - など）を絶対に使わない**
-5. **「撮影している描写」を絶対に入れない**（×：iPhoneで撮った、自撮りした、写した）
-6. **設定にない情報を勝手に追加しない**
+■ 内容について
+- 1ツイートあたり {target_length} を目安
+- 【最重要】上記の【ユーザー設定】に書かれた特徴だけを使ってください
+  - ユーザー設定に書かれている単語や特徴をそのまま使う
+  - 例：「ブサイク」と書かれていれば「ブサイク」を使う
+  - 例：「可愛い」と書かれていれば「可愛い」を使う
+  - 例：「Fカップ」と書かれていれば「Fカップ」を使う
+  - ユーザー設定にない容姿評価は絶対に追加しないでください
+- ユーザー設定にあるコンプレックスを具体的に書く
+- 「誰かに会いたい」「触れてほしい」という欲求を自然に含める
+- 恥ずかしさと寂しさが混ざった感情を表現する
 
-【出力形式】
+■ 禁止事項
+- 「撮影」「写真」「iPhone」「カメラ」などの撮影描写禁止
+- 「見られたく」は禁止（代わりに「会いたい」「触れてほしい」を使ってください）
+- 同じフレーズの繰り返し禁止
+- 数字や記号を使った箇条書き禁止
+- ユーザー設定にない特徴を勝手に追加しない
+
+【出力形式（###の中に1つのツイートを書く）】
 ###
-1つ目のツイート（意味のまとまりで改行）
+文の終わりで改行します。
+新しい文を書きます。
+さらに続けます。
 
 ###
-2つ目のツイート（1つ目と違う内容）
+次のツイートは前と違う内容にします。
+改行は文の終わりだけです。
 
-###
-3つ目のツイート（1,2つ目と違う内容）
-
-###
-4つ目のツイート（1,2,3つ目と違う内容）
+...（{num_tweets}個まで）
 """
     
     response = client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=1.4,  # バリエーションを出すために上げた
+        temperature=1.3,
         max_tokens=1500
     )
     
     raw = response.choices[0].message.content
     
-    # ツイートを抽出（改行を保持）+ 数字/記号を除去
+    # ツイートを抽出
     tweets = []
     for block in raw.split("###"):
         block = block.strip()
         if block and not block.startswith(" "):
-            # 先頭の数字や記号（1. 2. - など）を除去
+            # 先頭の数字や記号を除去
             block = re.sub(r'^[\d\.\-\s]+', '', block)
-            # 行頭の「1」「2」など単独数字も除去
             lines = block.split('\n')
             cleaned_lines = []
             for line in lines:
                 line = line.strip()
-                # 行が単独数字だけの場合はスキップ
                 if line and not re.match(r'^\d+$', line):
                     cleaned_lines.append(line)
             block = '\n'.join(cleaned_lines)
             block = block.strip()
-            if block:
+            if block and len(block) > 15:
                 tweets.append(block)
     
     return tweets[:num_tweets]
 
 # ============================================================
-# プロンプト変換用（裏垢女子っぽさ＋シャドウバン対策）
+# プロンプト変換用
 # ============================================================
 def tweet_to_prompt(tweet, index):
     safety_instruction = safety_map[safety_level]
@@ -280,12 +283,11 @@ if st.button("✨ ツイートを生成する", type="primary", use_container_wi
         st.session_state.tweets = tweets
         st.success(f"{len(tweets)}件のツイートを生成しました")
 
-# ツイート表示・編集（2カラム＋高さ200）
+# ツイート表示・編集
 if "tweets" in st.session_state:
     st.subheader("✏️ 生成されたツイート（編集可能）")
     edited_tweets = []
     
-    # 2カラムレイアウト
     cols = st.columns(2)
     
     for i, tweet in enumerate(st.session_state.tweets):
@@ -324,12 +326,11 @@ if "tweets" in st.session_state and st.session_state.tweets:
         st.session_state.prompts = prompts
         st.success(f"{len(prompts)}件のプロンプトを生成しました")
     
-    # プロンプト表示・編集（2カラム＋高さ150）
+    # プロンプト表示・編集
     if "prompts" in st.session_state:
         st.subheader("✏️ 生成された英語プロンプト（編集可能）")
         edited_prompts = []
         
-        # 2カラムレイアウト
         cols = st.columns(2)
         
         for i, (tweet, prompt) in enumerate(zip(st.session_state.tweets, st.session_state.prompts)):
@@ -354,7 +355,6 @@ if "tweets" in st.session_state and "prompts" in st.session_state:
     st.markdown("---")
     st.header("💾 ステップ3：データ出力")
     
-    # データフレーム作成
     df = pd.DataFrame({
         "キャラクター設定": [character_input] * len(st.session_state.tweets),
         "ツイート本文": st.session_state.tweets,
@@ -365,7 +365,6 @@ if "tweets" in st.session_state and "prompts" in st.session_state:
     
     st.dataframe(df, use_container_width=True)
     
-    # CSVダウンロード
     csv_buffer = io.StringIO()
     df.to_csv(csv_buffer, index=False, encoding="utf-8-sig")
     
@@ -379,7 +378,6 @@ if "tweets" in st.session_state and "prompts" in st.session_state:
             use_container_width=True
         )
     
-    # プロンプトだけをコピーしやすい形で表示
     with col2:
         st.markdown("**📋 Higgsfield貼り付け用**")
         for i, prompt in enumerate(st.session_state.prompts):
